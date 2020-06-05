@@ -4,6 +4,12 @@ import * as dat from 'dat.gui';
 import vxShaderStr from './main.vert';
 import fsShaderStr from './main.frag';
 
+import textureUrl from './tex.jpg';
+
+import './styles.css';
+
+import gitHash from '../hash.txt';
+
 let gl;
 let Tex;
 let shaderProgram;
@@ -25,6 +31,9 @@ const Edges =
   bottom: -1,
   top: 1
 };
+let RColor = 0;
+let GColor = 0;
+let BColor = 0;
 
 function initGL (canvas) {
   try {
@@ -78,6 +87,7 @@ function initShaders () {
   shaderProgram.Edges = gl.getUniformLocation(shaderProgram, 'Edges');
   shaderProgram.p1 = gl.getUniformLocation(shaderProgram, 'p1');
   shaderProgram.p2 = gl.getUniformLocation(shaderProgram, 'p2');
+  shaderProgram.InColor = gl.getUniformLocation(shaderProgram, 'InColor');
   shaderProgram.IsTexture = gl.getUniformLocation(shaderProgram, 'IsTexture');
 }
 
@@ -89,6 +99,7 @@ function setUniforms () {
   gl.uniform4f(shaderProgram.Edges, Edges.left, Edges.right, Edges.bottom, Edges.top);
   gl.uniform1f(shaderProgram.p1, p1);
   gl.uniform1f(shaderProgram.p2, p2);
+  gl.uniform3f(shaderProgram.InColor, RColor, GColor, BColor);
   gl.uniform1ui(shaderProgram.IsTexture, IsTexture);
 }
 
@@ -158,10 +169,13 @@ function tick () {
 var ObjGen = function () {
   this.p1 = -0.4;
   this.p2 = 0.6;
+  this.RColor = 0;
+  this.GColor = 0;
+  this.BColor = 0;
   this.IsTexture = true;
 };
 
-function createBorders (Pos, Scroll) {
+function createEdges (Pos, Scroll) {
   let Scale = 1;
 
   if (Scroll > 0) { Scale *= 1 + 0.5 * Scroll / 100; } else { Scale /= 1 - 0.5 * Scroll / 100; }
@@ -181,6 +195,8 @@ function createBorders (Pos, Scroll) {
 
 function webGLStart () {
   const canvas = document.getElementById('webglCanvas');
+
+  document.getElementById('__GIT_HASH__').innerHTML += 'Git Hash: ' + gitHash;
 
   function getMousePos (canvas, param) {
     const rect = canvas.getBoundingClientRect();
@@ -225,14 +241,17 @@ function webGLStart () {
   canvas.addEventListener('wheel', (param) => {
     MousePos = getMousePos(canvas, param);
     const MPos = { x: MousePos.x, y: 800 - MousePos.y };
-    createBorders(MPos, param.deltaY / 10.0);
+    createEdges(MPos, param.deltaY / 10.0);
   }, false);
 
   const gui = new dat.GUI();
   const Params = new ObjGen();
   const contrParam1 = gui.add(Params, 'p1');
   const contrParam2 = gui.add(Params, 'p2');
-  const contrParam3 = gui.add(Params, 'IsTexture');
+  const contrParam3 = gui.add(Params, 'RColor');
+  const contrParam4 = gui.add(Params, 'GColor');
+  const contrParam5 = gui.add(Params, 'BColor');
+  const contrParam6 = gui.add(Params, 'IsTexture');
 
   contrParam1.onChange(function (value) {
     p1 = value;
@@ -241,11 +260,20 @@ function webGLStart () {
     p2 = value;
   });
   contrParam3.onChange(function (value) {
+    RColor = Math.abs(value) % 256;
+  });
+  contrParam4.onChange(function (value) {
+    GColor = Math.abs(value) % 256;
+  });
+  contrParam5.onChange(function (value) {
+    BColor = Math.abs(value) % 256;
+  });
+  contrParam6.onChange(function (value) {
     IsTexture = value;
   });
 
   initGL(canvas);
-  Tex = loadTexture('./src/tex.jpg');
+  Tex = loadTexture(textureUrl);
   initShaders();
   initBuffers();
 

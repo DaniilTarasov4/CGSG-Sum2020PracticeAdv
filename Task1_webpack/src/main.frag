@@ -5,6 +5,7 @@ uniform float uTime;
 uniform vec4 Edges;
 uniform sampler2D Sampler;
 uniform float p1, p2;
+uniform vec3 InColor;
 uniform bool IsTexture;
 
 out vec4 OutColor;
@@ -55,5 +56,5 @@ void main(void)
   if (IsTexture)
     OutColor = texture(Sampler, vec2(n / 255.0, 0.5));
   else
-    OutColor = vec4(1, 0, 1, 1);
+    OutColor = vec4((InColor.x / 255.0) * n / 255.0, (InColor.y / 255.0) * n / 255.0, (InColor.z / 255.0) * n / 255.0, 1);
 }
