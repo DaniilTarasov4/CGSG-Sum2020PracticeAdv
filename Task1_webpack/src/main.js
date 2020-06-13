@@ -242,7 +242,8 @@ function webGLStart () {
     MousePos = getMousePos(canvas, param);
     const MPos = { x: MousePos.x, y: 800 - MousePos.y };
     createEdges(MPos, param.deltaY / 10.0);
-  }, false);
+    return true;
+  }, true);
 
   const gui = new dat.GUI();
   const Params = new ObjGen();
