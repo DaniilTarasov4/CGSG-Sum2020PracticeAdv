@@ -15,6 +15,7 @@ import rock from '../bin/landscape/rock-512.jpg';
 import snow from '../bin/landscape/snow-512.jpg';
 import watertex from '../bin/landscape/water-512.jpg';
 import particle from '../bin/cloud.png';
+import dirtparticle from '../bin/dirt.png';
 
 import './styles.css';
 
@@ -32,8 +33,9 @@ let Model;
 let HeightData;
 let Mesh;
 let Light;
-const particles = [];
-const numOfParticles = 200;
+const exhaust = [];
+const wheel1 = []; const wheel2 = []; const wheel3 = []; const wheel4 = [];
+const numOfParticles = 50;
 
 window.addEventListener('resize', onWindowResize, false);
 document.addEventListener('resize', onWindowResize, false);
@@ -175,8 +177,84 @@ function onWindowResize () {
   animate();
 }
 
-function ParticlesInit (particles) {
+function ParticleInit () {
   const loader = new THREE.TextureLoader();
+
+  loader.load(dirtparticle, function (texture) {
+    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
+    const cloudMaterial = new THREE.MeshLambertMaterial({
+      map: texture,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+
+    for (let i = 0; i < numOfParticles; i++) {
+      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
+      cloud.position.x = Model.scene.position.x + 1.15;
+      cloud.position.y = Model.scene.position.y + 0.5;
+      cloud.position.z = Model.scene.position.z - 0.1;
+      cloud.material.opacity = Math.random();
+      wheel1.push(cloud);
+      scene.add(cloud);
+    }
+  });
+
+  loader.load(dirtparticle, function (texture) {
+    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
+    const cloudMaterial = new THREE.MeshLambertMaterial({
+      map: texture,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+
+    for (let i = 0; i < numOfParticles; i++) {
+      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
+      cloud.position.x = Model.scene.position.x + 1.15;
+      cloud.position.y = Model.scene.position.y + 0.5;
+      cloud.position.z = Model.scene.position.z + 1.7;
+      cloud.material.opacity = Math.random();
+      wheel2.push(cloud);
+      scene.add(cloud);
+    }
+  });
+
+  loader.load(dirtparticle, function (texture) {
+    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
+    const cloudMaterial = new THREE.MeshLambertMaterial({
+      map: texture,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+
+    for (let i = 0; i < numOfParticles; i++) {
+      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
+      cloud.position.x = Model.scene.position.x + 2.1;
+      cloud.position.y = Model.scene.position.y + 0.5;
+      cloud.position.z = Model.scene.position.z - 0.1;
+      cloud.material.opacity = Math.random();
+      wheel3.push(cloud);
+      scene.add(cloud);
+    }
+  });
+
+  loader.load(dirtparticle, function (texture) {
+    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
+    const cloudMaterial = new THREE.MeshLambertMaterial({
+      map: texture,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+
+    for (let i = 0; i < numOfParticles; i++) {
+      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
+      cloud.position.x = Model.scene.position.x + 2.1;
+      cloud.position.y = Model.scene.position.y + 0.5;
+      cloud.position.z = Model.scene.position.z + 1.7;
+      cloud.material.opacity = Math.random();
+      wheel4.push(cloud);
+      scene.add(cloud);
+    }
+  });
 
   loader.load(particle, function (texture) {
     const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
@@ -192,7 +270,7 @@ function ParticlesInit (particles) {
       cloud.position.y = Model.scene.position.y + 0.7;
       cloud.position.z = Model.scene.position.z - 0.7;
       cloud.material.opacity = Math.random();
-      particles.push(cloud);
+      exhaust.push(cloud);
       scene.add(cloud);
     }
   });
@@ -212,7 +290,7 @@ function ModelLoad () {
     });
     scene.add(Model.scene);
     ModelUpdate();
-    ParticlesInit(particles);
+    ParticleInit();
   }, undefined, function (error) {
     alert(error);
   });
@@ -387,13 +465,69 @@ function SetSky () {
     scene.background.b = 1 - (time - 100) / 100;
     Light.intensity = 1 - (time - 100) / 100;
   }
+  Light.position.set(Model.getX, Model.getY + Math.cos(Math.PI * 2 * time / 200) * 10, Model.getZ + Math.sin(Math.PI * 2 * time / 200) * 10 * Math.sign(time - 200 / 2));
+  Light.target.position.set(Model.getX, Model.getY, Model.getZ);
 }
 
 function UpdateScene (now) {
   if (Model !== undefined) {
     const pos = Model.scene.position;
 
-    particles.forEach(function (prt) {
+    if (GetKey(83) || GetKey(87)) {
+      wheel1.forEach(function (prt) {
+        prt.material.opacity -= now / 10000;
+        prt.position.y += now / 5000;
+        prt.lookAt(camera.position);
+        if (prt.material.opacity <= 0) {
+          prt.material.opacity = 0.55;
+          prt.position.set(
+            Model.scene.position.x + Math.random() / 10 + 1.15,
+            Model.scene.position.y + Math.random() / 10 + 0.5,
+            Model.scene.position.z + Math.random() / 10 - 0.1);
+        }
+      });
+
+      wheel2.forEach(function (prt) {
+        prt.material.opacity -= now / 10000;
+        prt.position.y += now / 5000;
+        prt.lookAt(camera.position);
+        if (prt.material.opacity <= 0) {
+          prt.material.opacity = 0.55;
+          prt.position.set(
+            Model.scene.position.x + Math.random() / 10 + 1.15,
+            Model.scene.position.y + Math.random() / 10 + 0.5,
+            Model.scene.position.z + Math.random() / 10 + 1.7);
+        }
+      });
+
+      wheel3.forEach(function (prt) {
+        prt.material.opacity -= now / 10000;
+        prt.position.y += now / 5000;
+        prt.lookAt(camera.position);
+        if (prt.material.opacity <= 0) {
+          prt.material.opacity = 0.55;
+          prt.position.set(
+            Model.scene.position.x + Math.random() / 10 + 2.1,
+            Model.scene.position.y + Math.random() / 10 + 0.5,
+            Model.scene.position.z + Math.random() / 10 - 0.1);
+        }
+      });
+
+      wheel4.forEach(function (prt) {
+        prt.material.opacity -= now / 10000;
+        prt.position.y += now / 5000;
+        prt.lookAt(camera.position);
+        if (prt.material.opacity <= 0) {
+          prt.material.opacity = 0.55;
+          prt.position.set(
+            Model.scene.position.x + Math.random() / 10 + 2.1,
+            Model.scene.position.y + Math.random() / 10 + 0.5,
+            Model.scene.position.z + Math.random() / 10 + 1.7);
+        }
+      });
+    }
+
+    exhaust.forEach(function (prt) {
       prt.material.opacity -= now / 10000;
       prt.position.y += now / 5000;
       prt.lookAt(camera.position);
