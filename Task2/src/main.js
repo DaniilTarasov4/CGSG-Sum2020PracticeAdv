@@ -4,6 +4,8 @@ import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+import particleVertex from './particle.vert';
+import particleFragment from './particle.frag';
 import heightmapVertex from './heightmap.vert';
 import heightmapFragment from './heightmap.frag';
 
@@ -15,18 +17,18 @@ import rock from '../bin/landscape/rock-512.jpg';
 import snow from '../bin/landscape/snow-512.jpg';
 import watertex from '../bin/landscape/water-512.jpg';
 import particle from '../bin/cloud.png';
-import dirtparticle from '../bin/dirt.png';
 
 import './styles.css';
 
 let container, stats, controls;
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
 let scene;
 let renderer;
 const meshes = [];
 // let lamp1;
 let time;
 let angle = 0;
+let speed = 0;
 let PressedKeys = {};
 const Canvas = document.getElementById('Canvas');
 let Model;
@@ -34,8 +36,10 @@ let HeightData;
 let Mesh;
 let Light;
 const exhaust = [];
-const wheel1 = []; const wheel2 = []; const wheel3 = []; const wheel4 = [];
 const numOfParticles = 50;
+let CameraTarget;
+
+const clock = new THREE.Clock();
 
 window.addEventListener('resize', onWindowResize, false);
 document.addEventListener('resize', onWindowResize, false);
@@ -67,58 +71,96 @@ function Control () {
       if (angle === undefined) {
         angle = 0;
       }
-      angle += 0.005;
-      if (angle > 360) {
-        angle = angle - 360;
-      }
+      angle += 0.01;
       ModelRotate(angle);
     } else {
       if (GetKey(68)) {
         if (angle === undefined) {
           angle = 0;
         }
-        angle -= 0.005;
-        if (angle < 0) {
-          angle = 360 + angle;
-        }
+        angle -= 0.01;
         ModelRotate(angle);
       }
     }
     if (angle === undefined) {
       angle = 0;
     }
-    ModelMove(Math.sin(angle), Math.cos(angle));
-    WheelsRotate(0.05);
+    if (speed < 0) {
+      speed += 0.005;
+    }
+    speed += 0.001;
+    WheelsRotate(0.2);
   } else {
     if (GetKey(83)) {
-      if (GetKey(65)) {
+      if (GetKey(68)) {
         if (angle === undefined) {
           angle = 0;
         }
-        angle += 0.005;
-        if (angle > 360) {
-          angle = angle - 360;
-        }
+        angle += 0.01;
         ModelRotate(angle);
       } else {
-        if (GetKey(68)) {
+        if (GetKey(65)) {
           if (angle === undefined) {
             angle = 0;
           }
-          angle -= 0.005;
-          if (angle < 0) {
-            angle = 360 + angle;
-          }
+          angle -= 0.01;
           ModelRotate(angle);
         }
       }
       if (angle === undefined) {
         angle = 0;
       }
-      ModelMove(-Math.sin(angle), -Math.cos(angle));
-      WheelsRotate(-0.05);
+      if (speed > 0) {
+        speed -= 0.005;
+      }
+      speed -= 0.001;
+      WheelsRotate(-0.2);
+    } else {
+      if (speed === 0) {
+        return;
+      }
+      if (Math.abs(speed) < 0.07) {
+        speed = 0;
+        return;
+      }
+      if (speed > 0) {
+        if (GetKey(65)) {
+          if (angle === undefined) {
+            angle = 0;
+          }
+          angle += 0.01;
+          ModelRotate(angle);
+        } else {
+          if (GetKey(68)) {
+            if (angle === undefined) {
+              angle = 0;
+            }
+            angle -= 0.01;
+            ModelRotate(angle);
+          }
+        }
+        speed -= 0.005;
+      } else {
+        if (GetKey(68)) {
+          if (angle === undefined) {
+            angle = 0;
+          }
+          angle += 0.01;
+          ModelRotate(angle);
+        } else {
+          if (GetKey(65)) {
+            if (angle === undefined) {
+              angle = 0;
+            }
+            angle -= 0.01;
+            ModelRotate(angle);
+          }
+        }
+        speed += 0.005;
+      }
     }
   }
+  ModelMove(Math.sin(angle) * speed, Math.cos(angle) * speed);
 }
 
 function WheelsRotate (deg) {
@@ -149,7 +191,19 @@ function GetLandPos (p1, p2) {
   return 2048 * (1024 + p2) + 1024 + p1;
 }
 
+function GetAngle (vec1, vec2) {
+  const t = vec1.x * vec2.x + vec1.y * vec2.y + vec1.z * vec2.z;
+  const a = t / (vec1.length() * vec2.length());
+
+  return Math.acos(a);
+}
+
+// Fix it
 function ModelUpdate () {
+  if (HeightData === undefined) {
+    return;
+  }
+
   const Pos = Model.scene.position;
   const PosX = Pos.x;
   const PosZ = Pos.z;
@@ -177,105 +231,34 @@ function onWindowResize () {
   animate();
 }
 
-function ParticleInit () {
-  const loader = new THREE.TextureLoader();
+function ParticleInit (place, name, x, y, z) {
+  const prtTexture = new THREE.TextureLoader().load(name);
+  prtTexture.wrapS = prtTexture.wrapT = THREE.RepeatWrapping;
 
-  loader.load(dirtparticle, function (texture) {
-    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
-    const cloudMaterial = new THREE.MeshLambertMaterial({
-      map: texture,
-      transparent: true,
+  for (let i = 0; i < numOfParticles; i++) {
+    const uniforms = {
+      prtTexture: { type: 't', value: prtTexture },
+      alpha: { type: 'f', value: 0.0 }
+    };
+    const material = new THREE.ShaderMaterial({
+      uniforms: uniforms,
+      vertexShader: particleVertex,
+      fragmentShader: particleFragment,
       side: THREE.DoubleSide
     });
-
-    for (let i = 0; i < numOfParticles; i++) {
-      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
-      cloud.position.x = Model.scene.position.x + 1.15;
-      cloud.position.y = Model.scene.position.y + 0.5;
-      cloud.position.z = Model.scene.position.z - 0.1;
-      cloud.material.opacity = Math.random();
-      wheel1.push(cloud);
-      scene.add(cloud);
-    }
-  });
-
-  loader.load(dirtparticle, function (texture) {
-    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
-    const cloudMaterial = new THREE.MeshLambertMaterial({
-      map: texture,
-      transparent: true,
-      side: THREE.DoubleSide
-    });
-
-    for (let i = 0; i < numOfParticles; i++) {
-      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
-      cloud.position.x = Model.scene.position.x + 1.15;
-      cloud.position.y = Model.scene.position.y + 0.5;
-      cloud.position.z = Model.scene.position.z + 1.7;
-      cloud.material.opacity = Math.random();
-      wheel2.push(cloud);
-      scene.add(cloud);
-    }
-  });
-
-  loader.load(dirtparticle, function (texture) {
-    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
-    const cloudMaterial = new THREE.MeshLambertMaterial({
-      map: texture,
-      transparent: true,
-      side: THREE.DoubleSide
-    });
-
-    for (let i = 0; i < numOfParticles; i++) {
-      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
-      cloud.position.x = Model.scene.position.x + 2.1;
-      cloud.position.y = Model.scene.position.y + 0.5;
-      cloud.position.z = Model.scene.position.z - 0.1;
-      cloud.material.opacity = Math.random();
-      wheel3.push(cloud);
-      scene.add(cloud);
-    }
-  });
-
-  loader.load(dirtparticle, function (texture) {
-    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
-    const cloudMaterial = new THREE.MeshLambertMaterial({
-      map: texture,
-      transparent: true,
-      side: THREE.DoubleSide
-    });
-
-    for (let i = 0; i < numOfParticles; i++) {
-      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
-      cloud.position.x = Model.scene.position.x + 2.1;
-      cloud.position.y = Model.scene.position.y + 0.5;
-      cloud.position.z = Model.scene.position.z + 1.7;
-      cloud.material.opacity = Math.random();
-      wheel4.push(cloud);
-      scene.add(cloud);
-    }
-  });
-
-  loader.load(particle, function (texture) {
-    const cloudGeom = new THREE.PlaneBufferGeometry(1, 1);
-    const cloudMaterial = new THREE.MeshLambertMaterial({
-      map: texture,
-      transparent: true,
-      side: THREE.DoubleSide
-    });
-
-    for (let i = 0; i < numOfParticles; i++) {
-      const cloud = new THREE.Mesh(cloudGeom, cloudMaterial);
-      cloud.position.x = Model.scene.position.x + 1.2;
-      cloud.position.y = Model.scene.position.y + 0.7;
-      cloud.position.z = Model.scene.position.z - 0.7;
-      cloud.material.opacity = Math.random();
-      exhaust.push(cloud);
-      scene.add(cloud);
-    }
-  });
+    material.depthWrite = false;
+    material.transparent = true;
+    const cloud = new THREE.Sprite(material);
+    cloud.position.x = x;
+    cloud.position.y = y;
+    cloud.position.z = z;
+    cloud.material.opacity = Math.random() / 10;
+    place.push(cloud);
+    scene.add(cloud);
+  }
 }
 
+// Add lamps
 function ModelLoad () {
   const loader = new GLTFLoader();
   loader.load('../bin/scene.gltf', function (object) {
@@ -289,8 +272,10 @@ function ModelLoad () {
       }
     });
     scene.add(Model.scene);
+    Model.castShadow = true;
+    Model.recieveShadow = true;
     ModelUpdate();
-    ParticleInit();
+    ParticleInit(exhaust, particle, 1.2, 0.7, -0.7);
   }, undefined, function (error) {
     alert(error);
   });
@@ -369,6 +354,15 @@ function GenerateLandscape () {
 
     Mesh = new THREE.Mesh(geoPlane, material);
     Mesh.receiveShadow = true;
+    // Mesh.castShadow = true;
+
+    var Pos = camera.position;
+    var PosX = Pos.x;
+    var PosZ = Pos.z;
+    var val = HeightData[GetLandPos(Math.round(PosX), Math.round(PosZ))];
+    val *= 3;
+    camera.position.y = val;
+
     scene.add(Mesh);
   },
   undefined, function () {
@@ -382,13 +376,17 @@ function LightCreate () {
   // Light.position.set(0, 200, 0);
   // scene.add(Light);
 
-  Light = new THREE.DirectionalLight(0xffffff);
-  Light.position.set(0, 200, 100);
+  Light = new THREE.DirectionalLight(0xffffff, 1);
+  Light.position.set(0, 100, 0);
+  Light.target.position.set(0, 0, 0);
+  Light.shadow.camera.far = 500;
+  Light.shadow.camera.near = 0.5;
+  Light.shadow.camera.top = 5;
+  Light.shadow.camera.bottom = -5;
+  Light.shadow.camera.left = -5;
+  Light.shadow.camera.right = 5;
+  Light.shadow.bias = -0.005;
   Light.castShadow = true;
-  Light.shadow.camera.top = 180;
-  Light.shadow.camera.bottom = -100;
-  Light.shadow.camera.left = -120;
-  Light.shadow.camera.right = 120;
   scene.add(Light);
 }
 
@@ -405,10 +403,10 @@ function InitWater (height) {
 }
 
 function init () {
-  time = 0;
+  time = 50;
   document.addEventListener('keydown', KeyDown);
   document.addEventListener('keyup', KeyUp);
-  camera.position.y = 5;
+  // camera.position.y = 5;
 
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -427,20 +425,17 @@ function init () {
   GenerateLandscape();
   // InitWater(-30);
 
-  renderer = new THREE.WebGLRenderer({ canvas: Canvas, antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
+  renderer = new THREE.WebGLRenderer({ canvas: Canvas }); // , antialias: true
+  renderer.shadowMapEnabled = true;
   renderer.shadowMapSoft = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMapType = THREE.PCFSoftShadowMap;
   renderer.shadowCameraNear = 3;
   renderer.shadowCameraFar = camera.far;
   renderer.shadowCameraFov = 50;
   renderer.shadowMapBias = 0.0039;
   renderer.shadowMapDarkness = 0.5;
-  renderer.shadowMapWidth = 2048;
-  renderer.shadowMapHeight = 2048;
-  container.appendChild(renderer.domElement);
+  renderer.shadowMapWidth = 1024;
+  renderer.shadowMapHeight = 1024;
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 100, 0);
@@ -454,110 +449,81 @@ function init () {
 }
 
 function SetSky () {
-  if (time < 100) {
-    scene.background.r = time / 100;
-    scene.background.g = time / 100;
-    scene.background.b = time / 100;
-    Light.intensity = time / 100;
+  var y, w;
+
+  if (time < 25 || time >= 175) {
+    y = (100.0 - Math.abs(100.0 - time)) / 25.0;
   } else {
-    scene.background.r = 1 - (time - 100) / 100;
-    scene.background.g = 1 - (time - 100) / 100;
-    scene.background.b = 1 - (time - 100) / 100;
-    Light.intensity = 1 - (time - 100) / 100;
+    y = 1;
   }
-  Light.position.set(Model.getX, Model.getY + Math.cos(Math.PI * 2 * time / 200) * 10, Model.getZ + Math.sin(Math.PI * 2 * time / 200) * 10 * Math.sign(time - 200 / 2));
-  Light.target.position.set(Model.getX, Model.getY, Model.getZ);
+  if (time >= 25 && time < 175) {
+    w = (75.0 - Math.abs(100.0 - time)) / 50.0;
+    if (w > 1) {
+      w = 1;
+    }
+  } else {
+    w = 0;
+  }
+  Light.color.r = (y * 200.0 + w * 55.0) / 255.0;
+  Light.color.g = (y * 120.0 + w * 135.0) / 255.0;
+  Light.color.b = (y * 50.0 + w * 205.0) / 255.0;
+
+  scene.background = Light.color;
+}
+
+function SetCameraTarget (target) {
+  if (CameraTarget === undefined) {
+    CameraTarget = new THREE.Vector3(target.x, target.y, target.z);
+    camera.lookAt(CameraTarget);
+    return;
+  }
+  CameraTarget.x += (target.x - CameraTarget.x) * 0.5;
+  CameraTarget.y += (target.y - CameraTarget.y) * 0.05;
+  CameraTarget.z += (target.z - CameraTarget.z) * 0.5;
+  camera.lookAt(CameraTarget);
 }
 
 function UpdateScene (now) {
   if (Model !== undefined) {
     const pos = Model.scene.position;
 
-    if (GetKey(83) || GetKey(87)) {
-      wheel1.forEach(function (prt) {
-        prt.material.opacity -= now / 10000;
-        prt.position.y += now / 5000;
-        prt.lookAt(camera.position);
-        if (prt.material.opacity <= 0) {
-          prt.material.opacity = 0.55;
-          prt.position.set(
-            Model.scene.position.x + Math.random() / 10 + 1.15,
-            Model.scene.position.y + Math.random() / 10 + 0.5,
-            Model.scene.position.z + Math.random() / 10 - 0.1);
-        }
-      });
-
-      wheel2.forEach(function (prt) {
-        prt.material.opacity -= now / 10000;
-        prt.position.y += now / 5000;
-        prt.lookAt(camera.position);
-        if (prt.material.opacity <= 0) {
-          prt.material.opacity = 0.55;
-          prt.position.set(
-            Model.scene.position.x + Math.random() / 10 + 1.15,
-            Model.scene.position.y + Math.random() / 10 + 0.5,
-            Model.scene.position.z + Math.random() / 10 + 1.7);
-        }
-      });
-
-      wheel3.forEach(function (prt) {
-        prt.material.opacity -= now / 10000;
-        prt.position.y += now / 5000;
-        prt.lookAt(camera.position);
-        if (prt.material.opacity <= 0) {
-          prt.material.opacity = 0.55;
-          prt.position.set(
-            Model.scene.position.x + Math.random() / 10 + 2.1,
-            Model.scene.position.y + Math.random() / 10 + 0.5,
-            Model.scene.position.z + Math.random() / 10 - 0.1);
-        }
-      });
-
-      wheel4.forEach(function (prt) {
-        prt.material.opacity -= now / 10000;
-        prt.position.y += now / 5000;
-        prt.lookAt(camera.position);
-        if (prt.material.opacity <= 0) {
-          prt.material.opacity = 0.55;
-          prt.position.set(
-            Model.scene.position.x + Math.random() / 10 + 2.1,
-            Model.scene.position.y + Math.random() / 10 + 0.5,
-            Model.scene.position.z + Math.random() / 10 + 1.7);
-        }
-      });
-    }
-
     exhaust.forEach(function (prt) {
-      prt.material.opacity -= now / 10000;
-      prt.position.y += now / 5000;
       prt.lookAt(camera.position);
-      if (prt.material.opacity <= 0) {
-        prt.material.opacity = 0.55;
-        prt.position.set(
-          Model.scene.position.x + Math.random() / 10 + 1.2,
-          Model.scene.position.y + Math.random() / 10 + 0.7,
-          Model.scene.position.z + Math.random() / 10 - 0.7);
+      if (prt.material.uniforms.alpha.value <= 0) {
+        prt.position.set(pos.x, pos.y, pos.z);
+        if (speed !== 0) {
+          prt.material.uniforms.alpha.value = Math.random() / 2;
+        } else {
+          prt.position.set(0, 0, 0);
+        }
+      } else {
+        prt.material.uniforms.alpha.value -= 0.01;
+        if (prt.material.uniforms.alpha.value < 0) {
+          prt.material.uniforms.alpha.value = 0;
+        }
+        prt.position.y += now * 100;
       }
     });
 
-    Light.target.position.set(pos.x, pos.y - 100, pos.z);
-    Light.position.set(pos.x, pos.y + 100, pos.z);
+    Light.target.position.set(pos.x, pos.y, pos.z);
+    Light.position.set(pos.x + (time - 100) * 5, pos.y + 100, pos.z);
+    // Light.position.set(Model.scene.position.x, Model.scene.position.y + Math.cos(Math.PI * 2 * time / 200) * 10, Model.scene.position.z + Math.sin(Math.PI * 2 * time / 200) * 10 * Math.sign(time - 200 / 2));
+    // Light.target.position.set(Model.scene.position.x, Model.scene.position.y, Model.scene.position.z);
     Light.target.updateMatrixWorld();
-    camera.lookAt(Model.scene.position);
+    SetCameraTarget(Model.scene.position);
   }
 }
 
-function animate (now) {
-  now *= 0.001;
-
+function animate () {
   requestAnimationFrame(animate);
-  time += 0.1;
+
+  time += clock.getDelta();
   if (time >= 200) {
     time = 0;
   }
   SetSky();
   Control();
-  UpdateScene(now);
+  UpdateScene(clock.getDelta());
   renderer.render(scene, camera);
   stats.update();
 }
