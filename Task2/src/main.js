@@ -16,9 +16,10 @@ import grass from '../bin/landscape/grass-512.jpg';
 import rock from '../bin/landscape/rock-512.jpg';
 import snow from '../bin/landscape/snow-512.jpg';
 import watertex from '../bin/landscape/water-512.jpg';
-import particle from '../bin/cloud.png';
+import particle from '../bin/dirt.png';
 
 import './styles.css';
+// import { SrcAlphaFactor } from 'three';
 
 let container, stats, controls;
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
@@ -164,14 +165,22 @@ function Control () {
 }
 
 function WheelsRotate (deg) {
+  meshes[0].rotation.x += deg;
+  meshes[1].rotation.x += deg;
+  meshes[2].rotation.x += deg;
+  meshes[3].rotation.x += deg;
+  meshes[4].rotation.x += deg;
+  meshes[5].rotation.x += deg;
+  meshes[6].rotation.x += deg;
+  meshes[7].rotation.x += deg;
+  meshes[8].rotation.x += deg;
+  meshes[9].rotation.x += deg;
+  meshes[10].rotation.x += deg;
+  meshes[11].rotation.x += deg;
+  meshes[12].rotation.x += deg;
+  meshes[13].rotation.x += deg;
   meshes[14].rotation.x += deg;
-  meshes[17].rotation.x += deg;
-  meshes[18].rotation.x += deg;
-  meshes[21].rotation.x += deg;
-  meshes[22].rotation.x += deg;
-  meshes[25].rotation.x += deg;
-  meshes[26].rotation.x += deg;
-  meshes[29].rotation.x += deg;
+  meshes[15].rotation.x += deg;
 }
 
 function ModelRotate (deg) {
@@ -275,7 +284,7 @@ function ModelLoad () {
     Model.castShadow = true;
     Model.recieveShadow = true;
     ModelUpdate();
-    ParticleInit(exhaust, particle, 1.2, 0.7, -0.7);
+    ParticleInit(exhaust, particle, 0, 0, 0);
   }, undefined, function (error) {
     alert(error);
   });
@@ -491,6 +500,7 @@ function UpdateScene (now) {
       prt.lookAt(camera.position);
       if (prt.material.uniforms.alpha.value <= 0) {
         prt.position.set(pos.x, pos.y, pos.z);
+        prt.rotation.y = Model.scene.rotation.y;
         if (speed !== 0) {
           prt.material.uniforms.alpha.value = Math.random() / 2;
         } else {
